@@ -1,4 +1,8 @@
 # Arctic Training
+
+## Contributors
+- Haley Dunleavy
+
 Testing repository for Arctic Data Center workshop
 
 Adding more description
