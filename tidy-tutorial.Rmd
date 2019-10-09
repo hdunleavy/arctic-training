@@ -1,0 +1,246 @@
+---
+title: "Tidy-Data-Tutorial"
+author: "Haley Dunleavy"
+date: "10/9/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading packages and data
+```{r loading packages and data}
+library(tidyr)
+library(dplyr)
+library(stringr) 
+catch_original <- read.csv(url("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.302.1", method = "libcurl"),
+                    stringsAsFactors = FALSE)
+head(catch_original)
+```
+
+To access `filter` from the `stats` package:
+`stats::filter()`
+
+
+NOTE: Pipe operators
+`%>%` is the pipe operator. It serves as an input-output function to limit the amount of intermediate dataframes created while doing a series of steps. TL;DR. Computational efficiency and legibility!
+
+Select columns using `select()`
+```{r selecting columns}
+catch_data <- catch_original %>% 
+  # Can select each column
+  # select(Region, Year, Chinook, Sockeye, Coho, Pink, Chum)
+  # Or can drop columns
+  select(-All, -notesRegCode)
+head(catch_data)
+```
+
+```{r}
+summary(catch_data)
+```
+
+Change the values in the Chinook column to numeric using `mutate()`
+
+```{r}
+catch_clean <- catch_data %>% 
+  mutate(Chinook = as.numeric(Chinook))
+
+head(catch_clean)
+```
+
+Investigate using `which()` and `is.na()`.
+
+```{r}
+i <- which(is.na(catch_clean$Chinook))
+catch_data[i,]
+#catch_clean$Chinook[i] <- 1
+```
+
+* Use `mutate` to change the I to a 1
+* Use `mutate` to coerce Chinook column to numeric
+
+```{r}
+catch_clean <- catch_data %>% 
+  mutate(Chinook = ifelse(Chinook == "I", 1, Chinook)) %>% 
+  mutate(Chinook = as.numeric(Chinook))
+
+head(catch_clean)
+```
+
+# Tidy up dataframe
+
+Move from wide format to the long format using `pivot_longer()`. Arguments include a vector of the columns you want to collapse, a "names" column of what you will name the collapsed column names, and a "values" column of what you will names the values of collapsed column.
+
+```{r lengthening}
+catch_long <- catch_clean %>% 
+  # pivot_longer(c(Chinook, Sockeye, Coho, Pink, Chum), 
+  # names_to = "Species", 
+  # values_to = "Catch")
+  pivot_longer(-c(Region, Year), 
+               names_to = "Species",
+               values_to = "Catch")
+
+head(catch_long)
+```
+
+```{r widening}
+catch_wide <- catch_long %>% 
+  pivot_wider(names_from = Species, values_from = Catch)
+
+head(catch_wide)
+```
+
+`rename()` Catch to Catch_thousands.
+`mutate()` to create a new Catch column
+
+```{r}
+catch_long <- catch_long %>% 
+  # rename(Catch_thousands = Catch) %>% 
+  # mutate(Catch = 1000 * Catch_thousands) %>% 
+  # select(-Catch_thousands)
+  mutate(Catch = Catch * 1000)
+
+
+head(catch_long)
+```
+
+
+# Summarize data
+
+Mean catch by region using `group_by` and `summarise`
+
+```{r}
+mean_region <- catch_long %>% 
+  group_by(Region, Species) %>% 
+  summarise(mean_catch = mean(Catch), 
+            n_obs = n())
+
+mean_region
+```
+
+Mean catch by region of Sockeye using `filter`
+```{r}
+mean_sockeye_region <- catch_long %>% 
+  filter(Species == "Sockeye") %>% 
+  group_by(Region, Species) %>% 
+  summarise(mean_catch = mean(Catch), 
+            n_obs = n())
+
+mean_sockeye_region
+```
+
+
+```{r}
+annual_catch <- catch_long %>% 
+  group_by(Year) %>% 
+  summarise(total_catch = sum(Catch)) %>% 
+  arrange(total_catch)
+  #arrange(desc(total_catch))
+
+annual_catch
+```
+
+# Joining dataframes
+
+Loading in new dataframe to then join with the catch data.
+```{r load region data}
+region_defs <- read.csv("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.303.1",
+         stringsAsFactor = FALSE) %>% 
+  select(code, mgmtArea)
+
+
+head(region_defs)
+  
+```
+
+
+Joining the two dataframes by region keys into a new dataframe. Joins without a `by` argument will automatically look for common column names
+```{r joining}
+catch_joined <- left_join(catch_long, region_defs, by = c("Region" = "code"))
+
+
+region_defs <- region_defs %>% 
+  rename(Region = code)
+catch_joined <- left_join(catch_long, region_defs)
+
+head(catch_joined)
+```
+
+
+# Separate/Unite
+
+```{r}
+dates_df <- data.frame(date = c("5/24/1930",
+                                "5/25/1930",
+                                "5/26/1930",
+                                "5/27/1930",
+                                "5/28/1930"),
+                       stringsAsFactors = FALSE)
+
+dates_sep <- dates_df %>% 
+  separate(date, into = c("month", "day", "year"), sep = "/", remove = FALSE)
+
+dates_sep
+
+dates_united <- dates_sep %>% 
+  unite("Date",c("month", "day", "year"), sep = "/")
+
+dates_united
+
+```
+
+## Cool manipulations
+Selecting characters based on placement in text (e.g. start at character # 2 and stop at #4)
+```{r}
+dates_df %>% 
+  mutate(three_char = substr(date, start = 2, stop = 4))
+
+```
+
+OR start at third to last character to the end (-3 to -1) using `str_sub` in `stringr` package.
+```{r}
+dates_df$date %>% 
+  str_sub(start = -3, end = -1)
+```
+
+## More examples
+```{r more unite/separate examples}
+cities_df <- data.frame(city = c("Juneau AK", 
+                                 "Sitka AK", 
+                                 "Anchorage AK"),
+                        stringsAsFactors = FALSE)
+
+cities_df <- cities_df %>% 
+  separate(city, into = c("City", "State"), sep = " ") %>% 
+  unite(city, c("City", "State"), sep = ", ")
+```
+
+# Showcase of all the skills
+
+```{r skills summary}
+catch_original <- read.csv(url("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.302.1", method = "libcurl"),
+                  stringsAsFactors = FALSE)
+region_defs <- read.csv(url("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.303.1", method = "libcurl"),
+                        stringsAsFactors = FALSE) %>% 
+    select(code, mgmtArea)
+
+mean_region <- catch_original %>%
+  # select all columns but these ones
+  select(-All, -notesRegCode) %>% 
+  # fixing data record error and converting to numeric
+  mutate(Chinook = ifelse(Chinook == "I", 1, Chinook)) %>% 
+  mutate(Chinook = as.numeric(Chinook)) %>% 
+  # converting to long form dataframe
+  pivot_longer(-c(Region, Year), names_to = "species", values_to = "catch") %>%
+  # converting to appropriate units
+  mutate(catch = catch*1000) %>% 
+  # get mean catch by region
+  group_by(Region) %>% 
+  summarize(mean_catch = mean(catch)) %>% 
+  # join to include region descriptions by code
+  left_join(region_defs, by = c("Region" = "code"))
+
+head(mean_region)
+```
+
