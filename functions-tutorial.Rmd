@@ -1,0 +1,81 @@
+---
+title: "functions"
+author: "Haley Dunleavy"
+date: "10/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Creating functions
+
+## e.g. Converting temps in farenheit to temps in celsius
+
+### Create example data
+We want to convert these temps in farenheit to celsius.
+```{r}
+library(roxygen2)
+airtemps <- c(212, 30.3, 74, 28, 32, -40)
+airtemp1 <- (airtemps[1]-32) * 5/9
+``` 
+
+Create function to do so using `function`. Include documentation before writing function
+``` {r}
+
+#' Convert from Farenheit to Celsius
+#' 
+#' A much more detailed explantation of how the function works.
+#' @param temp represents a numeric input in degrees Farenheit
+#' @return the temperature in Celsius
+#' @keywords conversion
+#' @examples 
+#' far.cel(212)
+#' far.cel(c(0,-40,75,212))
+#' @export 
+
+far.cel <- function(temp) {
+  # check if temp is numeric, create error message if not
+  if(is.numeric(temp) == FALSE) stop('Entered temp is not a number')
+  #stopifnot(is.numeric(temp))
+  celsius <- (temp-32) * 5/9
+  return(celsius)
+}
+
+airtemps.C <- far.cel(airtemps)
+
+```
+
+Writing the inverse function
+```{r}
+
+#' Convert from Farenheit to Celsius
+#' 
+#' A much more detailed explantation of how the function works.
+#' @param temp represents a numeric input in degrees Celsius
+#' @return the temperature in Farenheit
+#' @keywords conversion
+#' @examples 
+#' cel.far(212)
+#' cel.far(c(0,-40,75,212))
+#' @export 
+cel.far <- function(temp) {
+  # check if temp is numeric, create error message if not
+  if(is.numeric(temp) == FALSE) stop('Entered temp is not a number')
+  farenheit <- (temp * 9/5) + 32
+  return(farenheit)
+}
+
+airtemps.F <- cel.far(airtemps.C)
+
+airtemps == airtemps.F
+
+```
+
+calling in functions from a script
+```{r}
+ source("conversions.R")
+```
+
