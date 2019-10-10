@@ -9,3 +9,53 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+#Load data and packages
+```{r load data and packages}
+  library(leaflet)
+  library(dplyr)
+  library(tidyr)
+  library(ggplot2)
+  library(DT)
+  library(sf)
+  library(ggmap)  # devtools::install_github("dkahle/ggmap")
+
+esc <- read.csv(url("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/urn%3Auuid%3Af119a05b-bbe7-4aea-93c6-85434dcb1c5e",
+                    method = "libcurl"),
+                stringsAsFactors = FALSE)
+
+head(esc)
+```
+
+# Annual escapement by Species and Region
+
+```{r}
+esc <- esc %>% 
+  separate(sampleDate, c("Year", "Month", "Day"), sep = "-", 
+           remove = FALSE) %>% 
+  mutate(Year = as.numeric(Year))
+
+
+annual_esc <- esc %>% 
+  group_by(Species, SASAP.Region, Year) %>% 
+  summarise(total_esc = sum(DailyCount)) %>% 
+  filter(Species %in% c("Chinook", "Sockeye", "Coho", "Pink", "Chum"))
+
+head(annual_esc)
+```
+
+#Make a barplot of annual escapement
+```{r}
+annual_plot <- ggplot(data = annual_esc, 
+                      aes(x = Year, y = total_esc, color = Species)) + 
+  geom_point() + 
+  geom_line() +
+  facet_wrap(~SASAP.Region, 
+             scales = "free_y",
+             nrow = 3, ncol = 3)
+  
+
+
+annual_plot
+```
+
+
