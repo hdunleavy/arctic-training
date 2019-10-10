@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 #Load data and packages
-```{r load data and packages}
+```{r load data and packages, warning = FALSE, message = FALSE}
   library(leaflet)
   library(dplyr)
   library(tidyr)
@@ -18,7 +18,9 @@ knitr::opts_chunk$set(echo = TRUE)
   library(DT)
   library(sf)
   library(ggmap)  # devtools::install_github("dkahle/ggmap")
+```
 
+```{r}
 esc <- read.csv(url("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/urn%3Auuid%3Af119a05b-bbe7-4aea-93c6-85434dcb1c5e",
                     method = "libcurl"),
                 stringsAsFactors = FALSE)
@@ -28,7 +30,7 @@ head(esc)
 
 # Annual escapement by Species and Region
 
-```{r}
+```{r, results = "hide"}
 esc <- esc %>% 
   separate(sampleDate, c("Year", "Month", "Day"), sep = "-", 
            remove = FALSE) %>% 
@@ -42,20 +44,31 @@ annual_esc <- esc %>%
 
 head(annual_esc)
 ```
+#Visualize Escapement
 
-#Make a barplot of annual escapement
-```{r}
+Total escapement by region and species
+```{r, echo = FALSE}
+ggplot(data = annual_esc,
+       aes(x = Species, y = total_esc, fill = SASAP.Region)) + 
+  geom_col()
+
+```
+
+Escapement over time by species and region
+```{r, echo = FALSE, fig.height= 12, fig.width = 7}
+my_theme <- theme_bw() +
+  theme(legend.position = "bottom")
+
 annual_plot <- ggplot(data = annual_esc, 
                       aes(x = Year, y = total_esc, color = Species)) + 
   geom_point() + 
   geom_line() +
   facet_wrap(~SASAP.Region, 
              scales = "free_y",
-             nrow = 3, ncol = 3)
+             ncol = 1) +
+  my_theme
   
 
 
 annual_plot
 ```
-
-
