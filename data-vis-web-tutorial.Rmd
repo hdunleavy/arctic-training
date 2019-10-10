@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-#Load data and packages
+# Load data and packages
 ```{r load data and packages, warning = FALSE, message = FALSE}
   library(leaflet)
   library(dplyr)
@@ -44,7 +44,7 @@ annual_esc <- esc %>%
 
 head(annual_esc)
 ```
-#Visualize Escapement
+# Visualize Escapement
 
 Total escapement by region and species
 ```{r, echo = FALSE}
@@ -71,4 +71,6 @@ annual_plot <- ggplot(data = annual_esc,
 
 
 annual_plot
+
+ggsave("escapement.png", annual_plot, width = 12, height = 7, units = "in")
 ```
