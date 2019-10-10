@@ -72,5 +72,66 @@ annual_plot <- ggplot(data = annual_esc,
 
 annual_plot
 
-ggsave("escapement.png", annual_plot, width = 12, height = 7, units = "in")
+ggsave("figures/escapement.png", annual_plot, width = 12, height = 7, units = "in")
 ```
+
+# Map of sampling locations
+
+Created a table with unique sampling locations, lats and longs
+
+```{r}
+locations <- esc %>% 
+  # pulls out unique rows of one or more columns
+  distinct(Location, Latitude, Longitude) %>% 
+  drop_na()
+```
+
+Sampling locations
+```{r, echo = FALSE}
+# package DT
+
+datatable(locations)
+```
+
+```{r, echo = FALSE}
+leaflet(locations) %>%
+  addTiles() %>% 
+  addMarkers(~ Longitude, ~ Latitude, popup = ~ Location)
+  
+
+```
+
+```{r}
+leaflet(locations) %>% 
+  addWMSTiles("https://www.gebco.net/data_and_products/gebco_web_services/web_map_service/mapserv?",
+              layers = 'GEBCO_LATEST',
+              attribution = "Imagery reproduced from the GEBCO_2014 Grid, version 20150318, www.gebco.net") %>%
+  addCircleMarkers(lng = ~Longitude,
+                   lat = ~Latitude,
+                   popup = ~ Location,
+                   radius = 5,
+                   # set fill properties
+                   fillColor = "salmon",
+                   fillOpacity = 1,
+                   # set stroke properties
+                   stroke = T,
+                   weight = 0.5,
+                   color = "white",
+                   opacity = 1)
+```
+
+
+
+# Alder latitudinal gradient sampling
+```{r, echo = FALSE}
+alder_sampling <- read.csv("~/Documents/Advisor.meetings/Summer2019/Alder/alder.site.coordinates.csv")
+
+alder_sampling <- 
+  alder_sampling %>% drop_na()
+
+leaflet(alder_sampling) %>%
+  addTiles() %>% 
+  addCircleMarkers(lng = ~Longitude, lat=  ~Latitude, popup = ~(paste(alder_sampling$Name, alder_sampling$Notes)))
+
+```
+
