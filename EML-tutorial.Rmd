@@ -1,0 +1,280 @@
+---
+title: "EML Tutorial"
+author: "Haley Dunleavy"
+date: "10/11/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Programmatic Metadata
+
+Load in EML package
+```{r}
+library(EML)
+```
+
+R uses name list structure. Creating an individual element with name 'me' to then populate EML fields.
+```{r}
+
+me <- list(givenName = "Haley",
+           surName = "Dunleavy")
+
+me
+
+```
+
+But this is a tedious and inefficient way of filling out all the EML entries. Alternatively, one can generate this same element using helper function with syntax: `eml$elementName()`
+
+```{r}
+me <- eml$individualName(givenName = "Haley", surName = "Dunleavy")
+
+me
+```
+
+## Minimal Valid EML
+
+* packageId
+* system
+* title
+* creator
+* contact
+
+Have to start with list. There isn't a helper function for the top level creation.
+```{r}
+doc <- list(packageId = "dataset-1",
+            system = "local",
+            dataset = eml$dataset(title = "A minimal value EML document", 
+                                  creator = eml$creator(individualName = me), 
+                                  contact = eml$contact(individualName = me))
+            )
+
+eml_validate(doc)
+
+write_eml(eml = doc, file = "files/minimal-exaple.xml")
+```
+
+
+# Creating a more detailed example 
+
+```{r}
+# eml creator and contact have identical schema requirements (both fall under `responsibleParty`)
+me <- eml$creator(individualName = eml$individualName(givenName = "Haley",
+                                                      surName = "Dunleavy"),
+                  organizationName = "Center for Ecosystem Science and Society",
+                  electronicMailAddress = "hd55@nau.edu",
+                  userId = list(directory = "https://orcid.org",
+                                userId = "https://orcid.org/0000-0002-7383-8598"))
+
+doc <- list(packageId = "dataset-1", 
+            system = "local",
+            dataset = eml$dataset(title = "A more robust valid EML dataset",
+                                  creator = me,
+                                  contact = me))
+
+eml_validate(doc)
+```
+
+## Adding to the document
+
+Can then edit the eml doc directly
+```{r}
+doc$dataset$abstract <- "A brief but comprehensive description of the who, what, where, when, why, and how of my dataset. At least 200 words."
+```
+
+For more complex sections. They have a grouping of functions known as the `set` helper functions. E.g. `set_methods`
+
+```{r}
+doc$dataset$methods <- set_methods("files/methods.md")
+doc$dataset$methods
+```
+
+E.g. `set_coverage` can be used to set temporal and spatial coverage
+```{r}
+doc$dataset$coverage <- set_coverage(beginDate = 2001,
+                                     endDate = 2010,
+                                     geographicDescription = "Alaska, United States",
+                                     westBoundingCoordinate = -179.9,
+                                     eastBoundingCoordinate = -120,
+                                     northBoundingCoordinate = 75,
+                                     southBoundingCoordinate = 55)
+
+eml_validate(doc)
+```
+
+## Creating data script and data file entities
+
+Adding R script
+```{r rScript}
+doc$dataset$otherEntity <- eml$otherEntity(entityName = "files/datfiles_processing.R",
+                                           entityDescription = "Data processing script",
+                                           entityType = "application/R")
+
+doc$dataset$otherEntity$physical <- set_physical("files/datfiles_processing.R")
+
+```
+
+Adding csv data table
+```{r csvFile}
+doc$dataset$dataTable <- eml$dataTable(entityName = "files/my-data.csv",
+                                       entityDescription = "Temperature data from in-situ loggers")
+
+doc$dataset$dataTable$physical <- set_physical("files/my-data.csv")
+
+eml_validate(doc) #comes out false because missing attribute list
+```
+
+We need to set the attributes in data table for EML to be valid. Can do so using the `data.frame` function
+```{r}
+atts <- data.frame(attributeName = c("time", "temperature", "site"),
+                   attributeDefinition = c("time of measurement", "measured temperature in degrees Celsius", "site identifier"),
+                   unit = c(NA, "celsius", NA),
+                   numberType = c(NA, "real", NA),
+                   formatString = c("HH:MM:SS", NA, NA),
+                   definition = c(NA, NA, "site identifier"))
+
+atts
+
+doc$dataset$dataTable$attributeList <- set_attributes(atts,col_classes = c("Date",
+                                                                           "numeric",
+                                                                           "character"))
+
+eml_validate(doc)
+str(doc$dataset$dataTable$attributeList)
+```
+
+A better option is to use shiny app to help edit attributes dataframe. Fill out table and then download table
+```{r}
+t <- shiny_attributes(data = read.csv("files/my-data.csv"))
+
+```
+
+## Save file
+```{r}
+write_eml(eml = doc, file = "files/more-complex-example.xml")
+```
+
+# Publishing to ADC site
+
+Uses `dataone` and `datapack` packages. Now not only your data analysis and metadata creation are reproducible, but also your publishing.
+
+```{r}
+library(dataone)
+library(datapack)
+```
+
+
+loading in authentication token for the ADC test data repository
+```{r}
+options(dataone_test_token = "copy token here")
+# don't want to save this to a script, always run it to the console. 
+# Also it expires every 18hrs
+```
+
+Specifying the member node rather than the whole NCEAS node. Setting up dataone client we are accessing. 
+```{r}
+d1c <- D1Client("STAGING", "urn:node:mnTestARCTIC")
+mn <- d1c@mn
+```
+
+## Create new data package
+
+### Set up variables and complete EML file
+```{r}
+dp <- new("DataPackage")
+dp
+```
+
+This creates an identifier for objects (would change scheme to "doi" if submitting a final version to ADC).
+```{r}
+data_id <- generateIdentifier(mn, scheme = "uuid")
+script_id <- generateIdentifier(mn, scheme = "uuid")
+metadata_id <- generateIdentifier(mn, scheme = "uuid")
+```
+
+```{r}
+doc <- read_eml("files/more-complex-example.xml")
+```
+
+Adding identifiers to metadata file
+```{r}
+doc$packageId <- metadata_id
+doc$system <- mn@identifier
+```
+
+Now need to add a url to metadata
+```{r}
+# set url for csv
+doc$dataset$dataTable$physical$distribution$online$url <- paste0(mn@endpoint,
+                                                                 "object/",
+                                                                 data_id)
+# set url for script
+doc$dataset$otherEntity$physical$distribution$online$url <- paste0(mn@endpoint,
+                                                                   "object/",
+                                                                   script_id)
+
+eml_validate(doc)
+write_eml(doc, "files/more-complex-example.xml")
+```
+
+### Add to datapack object
+`id` needs to match one of the format ids on DataONE
+```{r}
+# Add the metadata document to the package
+metadataObj <- new("DataObject",
+                   id = metadata_id,
+                   format ="eml://ecoinformatics.org/eml-2.1.1",
+                   filename = "files/more-complex-example.xml")
+
+dp <- addMember(dp, metadataObj)
+dp
+```
+
+Adding data csv table
+```{r}
+# Add our data file to the package
+sourceObj <- new("DataObject",
+                 id = data_id,
+                 format = "text/csv",
+                 filename = "files/my-data.csv")
+
+dp <- addMember(dp, sourceObj, mo = metadataObj)
+dp
+```
+
+
+Adding Rscript
+```{r}
+# Add our script to the package
+scriptObj <- new("DataObject",
+                 id = script_id,
+                 format = "application/R",
+                 filename = "files/datfiles_processing.R")
+
+dp <- addMember(dp, scriptObj, mo = metadataObj)
+dp
+```
+
+Describe the provenance or the relationship between script (program) and csv files (source)
+```{r}
+dp <- describeWorkflow(dp, sources = sourceObj, program = scriptObj)
+dp
+```
+
+### Change access
+Can add colleagues to the access permissions of the program
+```{r}
+dp <- addAccessRule(dp,
+                    subject = "http://orcid.org/0000-0003-0077-4738",
+                    permission = c("read","write"),
+                    getIdentifiers(dp))
+```
+
+## Add to test website
+
+```{r}
+packageId <- uploadDataPackage(d1c, dp, public = TRUE)
+```
+
